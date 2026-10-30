@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outlet Stock Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --border: #e3e6eb;
+    --border-strong: #cfd4dc;
+    --text: #1d2433;
+    --muted: #5f6b7d;
+    --faint: #8a94a4;
+    --accent: #e8711c;
+    --accent-dark: #c95d10;
+    --accent-soft: #fdf0e6;
+    --low: #b54708;
+    --low-soft: #fef3e8;
+    --ok: #3c7a5a;
+    --ok-soft: #ecf5ef;
+    --error: #b42318;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .04), 0 1px 3px rgba(16, 24, 40, .06);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 400 17px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  button, input { font: inherit; color: inherit; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px 64px; }
+  @media (max-width: 600px) { .wrap { padding: 0 16px 48px; } }
+
+  /* Header */
+  header.top {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 28px;
+  }
+  header.top .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 16px; padding-top: 18px; padding-bottom: 18px;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 20px; }
+  .brand-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; color: #fff; font-size: 17px; }
+  .who { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 15px; }
+
+  /* Buttons */
+  .btn {
+    border: 1px solid var(--border-strong); background: var(--card);
+    border-radius: 8px; padding: 9px 16px; font-weight: 500; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .btn:hover { background: #f1f3f6; }
+  .btn:focus-visible, .tab:focus-visible, .chip:focus-visible, .step:focus-visible, input:focus-visible {
+    outline: 3px solid rgba(232, 113, 28, .35); outline-offset: 1px;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.primary:disabled { background: var(--accent); }
+
+  /* Sign-in */
+  .signin { max-width: 420px; margin: 10vh auto 0; }
+  .signin h1 { font-size: 26px; margin: 0 0 6px; }
+  .signin p { color: var(--muted); margin: 0 0 24px; }
+  label.field { display: block; font-weight: 500; font-size: 15px; margin-bottom: 16px; }
+  label.field input {
+    display: block; width: 100%; margin-top: 6px; padding: 11px 14px;
+    border: 1px solid var(--border-strong); border-radius: 8px; background: #fff; font-size: 17px;
+  }
+  .form-error { color: var(--error); font-size: 15px; min-height: 22px; margin: 0 0 8px; }
+
+  /* Cards */
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+
+  /* Stats */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  @media (max-width: 860px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+  .stat { padding: 18px 20px; }
+  .stat .label { color: var(--muted); font-size: 14px; font-weight: 500; }
+  .stat .value { font-size: 30px; font-weight: 700; letter-spacing: -.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .stat .value.accent { color: var(--accent); }
+  .stat .sub { color: var(--faint); font-size: 14px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; overflow-x: auto; }
+  .tab {
+    background: none; border: none; padding: 12px 16px; cursor: pointer;
+    font-weight: 600; font-size: 17px; color: var(--muted);
+    border-bottom: 3px solid transparent; margin-bottom: -1px; white-space: nowrap;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .tab:hover { color: var(--text); }
+  .tab[aria-selected="true"] { color: var(--text); border-bottom-color: var(--accent); }
+  .count { font-size: 13px; font-weight: 600; background: #eef0f3; color: var(--muted); border-radius: 999px; padding: 1px 9px; }
+  .tab[aria-selected="true"] .count.has-low { background: var(--accent-soft); color: var(--accent-dark); }
+
+  /* Toolbar & category chips */
+  .toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    border: 1px solid var(--border-strong); background: var(--card); border-radius: 999px;
+    padding: 6px 14px; font-size: 15px; font-weight: 500; cursor: pointer; color: var(--muted);
+  }
+  .chip[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: #fff; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--muted); cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  /* Item grid */
+  .cat-head { font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: 28px 0 12px; }
+  .cat-head:first-child { margin-top: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 16px; }
+  @media (max-width: 400px) { .grid { grid-template-columns: 1fr; } }
+  .item { padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+  .item.is-low { border-color: #f3cfae; }
+  .item-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .item-name { font-weight: 600; font-size: 18px; line-height: 1.3; }
+  .item-meta { color: var(--faint); font-size: 14px; margin-top: 2px; }
+  .badge { font-size: 13px; font-weight: 600; border-radius: 6px; padding: 3px 9px; white-space: nowrap; }
+  .badge.low { background: var(--low-soft); color: var(--low); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .row .row-label { color: var(--muted); font-size: 15px; }
+  .stepper { display: flex; align-items: center; border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden; }
+  .step { width: 42px; height: 42px; border: none; background: #f6f7f9; cursor: pointer; font-size: 20px; color: var(--muted); }
+  .step:hover { background: #eceef2; color: var(--text); }
+  .stepper input {
+    width: 64px; height: 42px; border: none; border-left: 1px solid var(--border); border-right: 1px solid var(--border);
+    text-align: center; font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; -moz-appearance: textfield;
+  }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper input.changed { background: var(--accent-soft); }
+  .item-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--border); padding-top: 14px; }
+  .item-foot .note { font-size: 14px; color: var(--faint); }
+  .item-foot .note.short { color: var(--low); font-weight: 500; }
+  .item-foot .note.err { color: var(--error); }
+  .item-foot .actions { display: flex; gap: 8px; }
+
+  /* Order list */
+  .order-card { overflow: hidden; }
+  .order-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+  .order-head h2 { margin: 0; font-size: 20px; }
+  .order-head p { margin: 2px 0 0; color: var(--muted); font-size: 15px; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 14px 24px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; }
+  th { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--faint); background: #fafbfc; }
+  td.total { font-weight: 700; color: var(--accent-dark); }
+  td .unit { color: var(--faint); font-size: 14px; font-weight: 400; }
+  td .dim { color: #c3c9d2; }
+  tr:last-child td { border-bottom: none; }
+  .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
+
+  .banner { padding: 12px 16px; border-radius: 8px; background: #eef2f7; color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+  .banner.error { background: #fdecea; color: var(--error); }
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px);
+    background: var(--text); color: #fff; padding: 12px 20px; border-radius: 10px; font-size: 15px;
+    opacity: 0; pointer-events: none; transition: opacity .2s, transform .2s; max-width: calc(100% - 32px);
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+
+<!-- Sign-in -->
+<main id="signin-view" class="wrap" hidden>
+  <div class="signin">
+    <div class="brand" style="margin-bottom:28px"><div class="brand-mark">▦</div>Stock tracker</div>
+    <div class="card" style="padding:28px">
+      <h1>Sign in</h1>
+      <p>Use your tracker username and password.</p>
+      <form id="signin-form">
+        <label class="field">Username<input id="username" autocomplete="username" required></label>
+        <label class="field">Password<input id="password" type="password" autocomplete="current-password" required></label>
+        <p class="form-error" id="signin-error" role="alert"></p>
+        <button class="btn primary" style="width:100%" id="signin-btn">Sign in</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<!-- App -->
+<div id="app-view" hidden>
+  <header class="top">
+    <div class="wrap">
+      <div class="brand"><div class="brand-mark">▦</div>Stock tracker</div>
+      <div class="who">
+        <span id="who-name"></span>
+        <button class="btn" id="refresh-btn">Refresh</button>
+        <button class="btn" id="signout-btn">Sign out</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="banner" class="banner" hidden></div>
+
+    <section class="stats" aria-label="Summary">
+      <div class="card stat"><div class="label">Low items</div><div class="value accent" id="stat-low">–</div><div class="sub">at or below reorder level</div></div>
+      <div class="card stat"><div class="label">Lines to order</div><div class="value" id="stat-lines">–</div><div class="sub">items with a shortfall</div></div>
+      <div class="card stat"><div class="label">Units short</div><div class="value" id="stat-units">–</div><div class="sub">across all outlets</div></div>
+      <div class="card stat"><div class="label">Latest count</div><div class="value" id="stat-date" style="font-size:24px;line-height:45px">–</div><div class="sub" id="stat-date-sub"></div></div>
+    </section>
+
+    <nav class="tabs" role="tablist" id="tabs"></nav>
+
+    <section id="outlet-panel" role="tabpanel">
+      <div class="toolbar">
+        <div class="chips" id="chips" role="group" aria-label="Category"></div>
+        <label class="toggle"><input type="checkbox" id="low-only"> Show low items only</label>
+      </div>
+      <div id="items"></div>
+    </section>
+
+    <section id="order-panel" role="tabpanel" hidden>
+      <div class="card order-card">
+        <div class="order-head">
+          <div>
+            <h2>Order from suppliers</h2>
+            <p>Shortfall is reorder level minus stock on hand, totalled across all three outlets.</p>
+          </div>
+          <button class="btn primary" id="copy-btn">Copy order list</button>
+        </div>
+        <div class="table-scroll" id="order-table"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const SUPABASE_URL = 'https://jeerscukwmcawmoddoax.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JkOIq3bGF5fHrFLVFwfRNg_p19u-bcW';
+const EMAIL_DOMAIN = '@tracker.example';
+const OUTLETS = ['Jurong', 'Orchard', 'Tampines'];
+const CATEGORY_ORDER = ['Coffee', 'Milk', 'Powders', 'Syrups', 'Bakery', 'Packaging'];
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const state = {
+  items: {},          // "outlet|sku" -> latest row
+  drafts: {},         // "outlet|sku" -> { qty, reorder }
+  tab: OUTLETS[0],
+  category: 'All',
+  lowOnly: false,
+  canEdit: false,
+};
+
+const $ = id => document.getElementById(id);
+const key = (outlet, sku) => outlet + '|' + sku;
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const isLow = r => r.qty_on_hand <= r.reorder_level;
+const shortfall = r => Math.max(r.reorder_level - r.qty_on_hand, 0);
+const plural = (n, unit) => n === 1 ? unit : (/(x|s|ch|sh)$/.test(unit) ? unit + 'es' : unit + 's');
+const todayLocal = () => new Date().toLocaleDateString('en-CA');
+const fmtDate = d => new Date(d + 'T00:00:00').toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+function banner(msg, isError) {
+  const b = $('banner');
+  b.hidden = !msg;
+  b.textContent = msg || '';
+  b.classList.toggle('error', !!isError);
+}
+
+/* ---------- Auth ---------- */
+
+async function showForSession(session) {
+  if (!session) {
+    $('app-view').hidden = true;
+    $('signin-view').hidden = false;
+    return;
+  }
+  $('signin-view').hidden = true;
+  $('app-view').hidden = false;
+
+  const { data: profile } = await db.from('profiles')
+    .select('display_name, role').eq('id', session.user.id).maybeSingle();
+  state.canEdit = profile?.role === 'admin';
+  $('who-name').textContent = profile?.display_name || session.user.email.replace(EMAIL_DOMAIN, '');
+  banner(state.canEdit ? '' : 'You can view stock, but only admins can save changes.');
+  await loadStock();
+}
+
+$('signin-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const username = $('username').value.trim().toLowerCase();
+  const password = $('password').value;
+  $('signin-error').textContent = '';
+  $('signin-btn').disabled = true;
+  const { data, error } = await db.auth.signInWithPassword({ email: username + EMAIL_DOMAIN, password });
+  $('signin-btn').disabled = false;
+  if (error) {
+    $('signin-error').textContent = 'That username and password don’t match.';
+    return;
+  }
+  $('password').value = '';
+  showForSession(data.session);
+});
+
+$('signout-btn').addEventListener('click', async () => {
+  await db.auth.signOut();
+  state.items = {};
+  state.drafts = {};
+  showForSession(null);
+});
+
+$('refresh-btn').addEventListener('click', () => loadStock().then(() => toast('Stock refreshed')));
+
+/* ---------- Data ---------- */
+
+async function loadStock() {
+  const { data, error } = await db.from('stock_counts')
+    .select('outlet, sku, item_name, unit, category, qty_on_hand, reorder_level, counted_at, updated_at')
+    .order('counted_at', { ascending: false });
+  if (error) {
+    banner('Couldn’t load stock: ' + error.message, true);
+    return;
+  }
+  // Keep only the latest count per outlet and item
+  const items = {};
+  for (const r of data) {
+    const k = key(r.outlet, r.sku);
+    if (!items[k]) items[k] = r;
+  }
+  state.items = items;
+  render();
+}
+
+async function saveItem(k) {
+  const row = state.items[k];
+  const draft = state.drafts[k];
+  if (!row || !draft) return;
+
+  const payload = {
+    outlet: row.outlet,
+    sku: row.sku,
+    item_name: row.item_name,
+    unit: row.unit,
+    category: row.category,
+    qty_on_hand: draft.qty,
+    reorder_level: draft.reorder,
+    counted_at: todayLocal(),
+    updated_at: new Date().toISOString(),
+  };
+  setItemStatus(k, 'Saving…');
+  const { data, error } = await db.from('stock_counts')
+    .upsert(payload, { onConflict: 'outlet,sku,counted_at' })
+    .select('outlet, sku, item_name, unit, category, qty_on_hand, reorder_level, counted_at, updated_at')
+    .single();
+  if (error) {
+    setItemStatus(k, 'Not saved: ' + error.message, 'err');
+    return;
+  }
+  state.items[k] = data;
+  delete state.drafts[k];
+  render();
+  toast(`${data.item_name} saved for ${data.outlet}`);
+}
+
+/* ---------- Rendering ---------- */
+
+function rowsFor(outlet) {
+  return Object.values(state.items)
+    .filter(r => r.outlet === outlet)
+    .sort((a, b) => a.sku.localeCompare(b.sku));
+}
+
+function categoriesIn(rows) {
+  const present = new Set(rows.map(r => r.category));
+  const ordered = CATEGORY_ORDER.filter(c => present.has(c));
+  return ordered.concat([...present].filter(c => !CATEGORY_ORDER.includes(c)).sort());
+}
+
+function orderLines() {
+  const bySku = {};
+  for (const r of Object.values(state.items)) {
+    const s = shortfall(r);
+    if (!bySku[r.sku]) bySku[r.sku] = { sku: r.sku, name: r.item_name, unit: r.unit, perOutlet: {}, total: 0 };
+    bySku[r.sku].perOutlet[r.outlet] = s;
+    bySku[r.sku].total += s;
+  }
+  return Object.values(bySku).filter(l => l.total > 0).sort((a, b) => a.sku.localeCompare(b.sku));
+}
+
+function render() {
+  const all = Object.values(state.items);
+  const lines = orderLines();
+  const latest = all.reduce((m, r) => (r.counted_at > m ? r.counted_at : m), '');
+
+  $('stat-low').textContent = all.filter(isLow).length;
+  $('stat-lines').textContent = lines.length;
+  $('stat-units').textContent = lines.reduce((n, l) => n + l.total, 0);
+  $('stat-date').textContent = latest ? fmtDate(latest) : '–';
+  $('stat-date-sub').textContent = all.length ? `${OUTLETS.length} outlets · ${all.length} items` : '';
+
+  renderTabs(lines.length);
+  const onOrder = state.tab === 'order';
+  $('outlet-panel').hidden = onOrder;
+  $('order-panel').hidden = !onOrder;
+  if (onOrder) renderOrder(lines); else renderOutlet();
+}
+
+function renderTabs(lineCount) {
+  const tabs = OUTLETS.map(o => {
+    const low = rowsFor(o).filter(isLow).length;
+    return { id: o, label: o, count: low, hint: `${low} low` };
+  });
+  tabs.push({ id: 'order', label: 'Order from suppliers', count: lineCount, hint: `${lineCount} lines` });
+  $('tabs').innerHTML = tabs.map(t => `
+    <button class="tab" role="tab" aria-selected="${state.tab === t.id}" data-tab="${esc(t.id)}" title="${esc(t.hint)}">
+      ${esc(t.label)} <span class="count ${t.count ? 'has-low' : ''}">${t.count}</span>
+    </button>`).join('');
+}
+
+function renderOutlet() {
+  const rows = rowsFor(state.tab);
+  const cats = categoriesIn(rows);
+  if (state.category !== 'All' && !cats.includes(state.category)) state.category = 'All';
+
+  $('chips').innerHTML = ['All', ...cats].map(c =>
+    `<button class="chip" aria-pressed="${state.category === c}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+
+  const visible = rows.filter(r =>
+    (state.category === 'All' || r.category === state.category) &&
+    (!state.lowOnly || isLow(r)));
+
+  if (!visible.length) {
+    $('items').innerHTML = `<div class="card empty">${rows.length ? 'No items match this filter.' : 'No stock found for this outlet.'}</div>`;
+    return;
+  }
+
+  $('items').innerHTML = cats
+    .map(c => {
+      const group = visible.filter(r => r.category === c);
+      if (!group.length) return '';
+      return `<h3 class="cat-head">${esc(c)}</h3><div class="grid">${group.map(itemCard).join('')}</div>`;
+    }).join('');
+}
+
+function itemCard(r) {
+  const k = key(r.outlet, r.sku);
+  const d = state.drafts[k];
+  const qty = d ? d.qty : r.qty_on_hand;
+  const reorder = d ? d.reorder : r.reorder_level;
+  const preview = { qty_on_hand: qty, reorder_level: reorder };
+  const low = isLow(preview);
+  const short = shortfall(preview);
+  const dirty = !!d && (d.qty !== r.qty_on_hand || d.reorder !== r.reorder_level);
+  const ro = state.canEdit ? '' : 'disabled';
+
+  let note = `Counted ${fmtDate(r.counted_at)}`;
+  let noteClass = '';
+  if (dirty) { note = 'Unsaved changes'; noteClass = 'short'; }
+  else if (short > 0) { note = `Short ${short} ${plural(short, r.unit)}`; noteClass = 'short'; }
+
+  return `
+  <article class="card item ${low ? 'is-low' : ''}" data-key="${esc(k)}">
+    <div class="item-top">
+      <div>
+        <div class="item-name">${esc(r.item_name)}</div>
+        <div class="item-meta">${esc(r.sku)} · per ${esc(r.unit)}</div>
+      </div>
+      <span class="badge ${low ? 'low' : 'ok'}">${low ? 'Low' : 'OK'}</span>
+    </div>
+    <div class="row">
+      <span class="row-label">In stock</span>
+      ${stepper('qty', qty, r.qty_on_hand, ro, r.item_name + ' in stock')}
+    </div>
+    <div class="row">
+      <span class="row-label">Reorder level</span>
+      ${stepper('reorder', reorder, r.reorder_level, ro, r.item_name + ' reorder level')}
+    </div>
+    <div class="item-foot">
+      <span class="note ${noteClass}" data-note>${esc(note)}</span>
+      <div class="actions">
+        ${dirty ? `<button class="btn" data-action="reset">Undo</button>` : ''}
+        <button class="btn primary" data-action="save" ${dirty && state.canEdit ? '' : 'disabled'}>Save</button>
+      </div>
+    </div>
+  </article>`;
+}
+
+function stepper(field, value, saved, ro, label) {
+  return `
+  <div class="stepper">
+    <button class="step" data-step="${field}" data-delta="-1" aria-label="Decrease ${esc(label)}" ${ro}>−</button>
+    <input type="number" min="0" step="1" inputmode="numeric" value="${value}" data-field="${field}"
+      class="${value !== saved ? 'changed' : ''}" aria-label="${esc(label)}" ${ro}>
+    <button class="step" data-step="${field}" data-delta="1" aria-label="Increase ${esc(label)}" ${ro}>+</button>
+  </div>`;
+}
+
+function setItemStatus(k, msg, cls) {
+  const card = document.querySelector(`[data-key="${CSS.escape(k)}"]`);
+  if (!card) return;
+  const note = card.querySelector('[data-note]');
+  note.textContent = msg;
+  note.className = 'note ' + (cls || '');
+}
+
+function renderOrder(lines) {
+  if (!lines.length) {
+    $('order-table').innerHTML = `<div class="empty">Nothing to order. Every item is above its reorder level.</div>`;
+    $('copy-btn').disabled = true;
+    return;
+  }
+  $('copy-btn').disabled = false;
+  $('order-table').innerHTML = `
+    <table>
+      <thead><tr><th>Item</th>${OUTLETS.map(o => `<th>${esc(o)}</th>`).join('')}<th>Total to order</th></tr></thead>
+      <tbody>${lines.map(l => `
+        <tr>
+          <td><strong>${esc(l.name)}</strong><br><span class="unit">${esc(l.sku)} · per ${esc(l.unit)}</span></td>
+          ${OUTLETS.map(o => { const n = l.perOutlet[o] || 0; return `<td>${n ? n : '<span class="dim">–</span>'}</td>`; }).join('')}
+          <td class="total">${l.total} <span class="unit">${esc(plural(l.total, l.unit))}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function orderText(lines) {
+  const head = `Supplier order (${fmtDate(todayLocal())})`;
+  const body = lines.map(l => {
+    const split = OUTLETS.filter(o => l.perOutlet[o]).map(o => `${o} ${l.perOutlet[o]}`).join(', ');
+    return `- ${l.name}: ${l.total} ${plural(l.total, l.unit)} (${split})`;
+  });
+  return [head, '', ...body].join('\n');
+}
+
+/* ---------- Events ---------- */
+
+$('tabs').addEventListener('click', e => {
+  const t = e.target.closest('[data-tab]');
+  if (!t) return;
+  state.tab = t.dataset.tab;
+  render();
+});
+
+$('chips').addEventListener('click', e => {
+  const c = e.target.closest('[data-cat]');
+  if (!c) return;
+  state.category = c.dataset.cat;
+  renderOutlet();
+});
+
+$('low-only').addEventListener('change', e => {
+  state.lowOnly = e.target.checked;
+  renderOutlet();
+});
+
+function updateDraft(k, field, value) {
+  const r = state.items[k];
+  const d = state.drafts[k] || { qty: r.qty_on_hand, reorder: r.reorder_level };
+  d[field] = Math.max(0, Math.floor(Number.isFinite(value) ? value : 0));
+  if (d.qty === r.qty_on_hand && d.reorder === r.reorder_level) delete state.drafts[k];
+  else state.drafts[k] = d;
+}
+
+function rerenderCard(k) {
+  const card = document.querySelector(`[data-key="${CSS.escape(k)}"]`);
+  if (!card) return;
+  const focusField = document.activeElement?.closest('[data-key]') === card ? document.activeElement.dataset.field : null;
+  card.outerHTML = itemCard(state.items[k]);
+  if (focusField) {
+    const input = document.querySelector(`[data-key="${CSS.escape(k)}"] input[data-field="${focusField}"]`);
+    if (input) { input.focus(); input.select(); }
+  }
+}
+
+$('items').addEventListener('click', e => {
+  const card = e.target.closest('[data-key]');
+  if (!card) return;
+  const k = card.dataset.key;
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    const field = step.dataset.step;
+    const r = state.items[k];
+    const d = state.drafts[k] || { qty: r.qty_on_hand, reorder: r.reorder_level };
+    updateDraft(k, field, d[field] + Number(step.dataset.delta));
+    rerenderCard(k);
+    return;
+  }
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (action === 'save') saveItem(k);
+  if (action === 'reset') { delete state.drafts[k]; rerenderCard(k); }
+});
+
+$('items').addEventListener('change', e => {
+  const input = e.target.closest('input[data-field]');
+  if (!input) return;
+  const k = input.closest('[data-key]').dataset.key;
+  updateDraft(k, input.dataset.field, parseInt(input.value, 10));
+  rerenderCard(k);
+});
+
+$('items').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  const input = e.target.closest('input[data-field]');
+  if (!input) return;
+  const k = input.closest('[data-key]').dataset.key;
+  updateDraft(k, input.dataset.field, parseInt(input.value, 10));
+  saveItem(k);
+});
+
+$('copy-btn').addEventListener('click', async () => {
+  const text = orderText(orderLines());
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+  }
+  toast('Order list copied');
+});
+
+window.addEventListener('beforeunload', e => {
+  if (Object.keys(state.drafts).length) { e.preventDefault(); e.returnValue = ''; }
+});
+
+/* ---------- Start ---------- */
+
+db.auth.getSession().then(({ data }) => showForSession(data.session));
+</script>
+</body>
+</html>
